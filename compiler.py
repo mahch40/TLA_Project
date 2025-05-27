@@ -1,11 +1,12 @@
 # region LL1 Grammer class
 class LL1Grammar():
-    def __init__(self, start, non_terminals, terminals, productions, token_rules):
+    def __init__(self, start, non_terminals, terminals, productions, token_rules, stack_bottom_symbol='$'):
         self.start = start
         self.non_terminals = non_terminals
         self.terminals = terminals
         self.productions = productions
         self.token_rules = token_rules
+        self.stack_bottom_symbol = stack_bottom_symbol
 
     @staticmethod
     def file_to_LL1(filename):
@@ -49,15 +50,105 @@ class LL1Grammar():
                 line =f.readline() 
 
         return LL1Grammar(start, non_terminals, terminals, productions, token_rules)  
+    
+    def find_first_set(self):
+        first = {}
+        for nt in self.non_terminals:
+            first[nt] = set()
+        done = False
+        while not done:
+            changed = False
+            for nt in self.non_terminals:
+                productions = self.productions[nt]
+                size_before_change = len(first[nt])
+                size_after_change = len(first[nt])
+                for production in productions:
+                    terms = production.split()
+                    if terms[0] in self.terminals or terms[0] == 'eps':
+                        first[nt].add(terms[0])
+                        size_after_change = len(first[nt])
+                    else:
+                        idx = 0
+                        var = terms[0]
+                        while 'eps' in first[var] and idx < len(terms):
+                            temp_copy = first[var].copy()
+                            temp_copy.remove('eps')
+                            first[nt].update(temp_copy)
+                            idx += 1
+                            if idx == len(terms):
+                                break
+                            var = terms[idx]
+                        first[nt].update(first[var])
+                        size_after_change = len(first[nt])
+                if(size_after_change > size_before_change):
+                    changed = True
+            if(not changed):
+                done = True
+
+        return first
+    
+    def find_follow_set(self , first):
+        follow = {}
+        for nt in self.non_terminals:
+            follow[nt] = set()
+            if nt == self.start:
+                follow[nt].add(self.stack_bottom_symbol)
+        done = False
+        while not done:
+            changed = False
+            for left_side , productions in self.productions.items():
+                for right_side in productions:
+                    terms = right_side.split()
+                    for i, term in enumerate(terms):
+                        if term in self.non_terminals:
+                            size_before_change = len(follow[term])
+                            size_after_change = len(follow[term])
+                            if i == len(terms) - 1:
+                                follow[term].update(follow[left_side])
+                                size_after_change = len(follow[term])
+                            else:
+                                beta = terms[i+1 :]
+                                beta_first = set()
+                                if beta[0] in self.terminals or beta[0] == 'eps':
+                                    beta_first.add(beta[0])
+                                else:
+                                    idx = 0
+                                    var = beta[0]
+                                    while 'eps' in first[var] and idx < len(beta):
+                                        temp_copy = first[var].copy()
+                                        temp_copy.remove('eps')
+                                        beta_first.update(temp_copy)
+                                        idx += 1
+                                        if idx == len(beta):
+                                            break
+                                        var = beta[idx]
+                                    beta_first.update(first[var])
+                                if 'eps' in beta_first:
+                                    beta_first.remove('eps')
+                                    follow[term].update(follow[left_side])
+                                follow[term].update(beta_first)
+                                size_after_change = len(follow[term])
+                            if(size_after_change > size_before_change):
+                                changed = True
+            if not changed:
+                done = True
+        
+        return follow
+
+
+            
+
 
 # test file to ll1 grammer
 #-------------------------------------
-# g = LL1Grammar.file_to_LL1("grammar.ll1")          
+g = LL1Grammar.file_to_LL1("grammar.ll1")          
 # print("Start:", g.start)
 # print("Terminals:", g.terminals)
 # print("Non-terminals:", g.non_terminals)
 # print("Productions:", g.productions)
 # print("Token Rules:", g.token_rules)
+# print(g.find_first_set())
+print(g.find_follow_set(g.find_first_set()))
 #-------------------------------------
 # endtest
 
