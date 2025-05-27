@@ -1,11 +1,12 @@
 # region LL1 Grammer class
 class LL1Grammar():
-    def __init__(self, start, non_terminals, terminals, productions: dict, token_rules):
+    def __init__(self, start, non_terminals, terminals, productions, token_rules, stack_bottom_symbol='$'):
         self.start = start
         self.non_terminals = non_terminals
         self.terminals = terminals
         self.productions = productions
         self.token_rules = token_rules
+        self.stack_bottom_symbol = stack_bottom_symbol
 
     @staticmethod
     def file_to_LL1(filename):
@@ -50,156 +51,92 @@ class LL1Grammar():
 
         return LL1Grammar(start, non_terminals, terminals, productions, token_rules)  
     
-
-
-def find_first_set_of_beta(ll1, firsts, beta):
-    first_beta = []
-    
-    if not beta: 
-        first_beta.append('eps')
-        return first_beta
-
-    for i, symbol in enumerate(beta):
-        if symbol in firsts:
-            current_symbol_first = firsts[symbol]
-        elif symbol in ll1.terminals: 
-             current_symbol_first = [symbol]
-        else:
-            return []
-
-        for term in current_symbol_first:
-            if term != 'eps':
-                if term not in first_beta: 
-                    first_beta.append(term)
-
-        if 'eps' not in current_symbol_first:
-            break 
-
-        elif i == len(beta) - 1: # If 'eps' was in current and this is the last symbol
-            if 'eps' not in first_beta: 
-                first_beta.append('eps')
-    
-    return first_beta
-
-def find_all_firsts(ll1):
-    firsts = {}
-
-    # Initialize FIRST lists for terminals
-    for terminal in ll1.terminals:
-        firsts[terminal] = [terminal] 
-    
-    # 'eps''s FIRST list is just ['eps']
-    firsts['eps'] = ['eps'] 
-
-    # Initialize FIRST lists for non-terminals to empty lists
-    for nt in ll1.non_terminals:
-        firsts[nt] = [] 
-
-    changed = True
-    while changed:
-        changed = False
-        for nt in ll1.non_terminals: 
-            # Production bodies are strings here, e.g., 'T E_prime'
-            production_pings = ll1.productions.get(nt, []) 
- 
-            for p in production_pings:
-                # --- NEW: Parse the string into a list of symbols here ---
-                parts = p.split(' ')
-                production_body_symbols = []
-                for s in parts:
-                    if s: # Check if the string 's' is not empty
-                        production_body_symbols.append(s)
-                # --- END NEW ---
-
-                current_production_first = [] 
-                produces_epsilon_for_this_production = True 
-
-                for symbol in production_body_symbols: # Iterate over parsed symbols
-                    if symbol in firsts: 
-                        for term in firsts[symbol]:
-                            if term != 'eps':
-                                if term not in current_production_first: 
-                                    current_production_first.append(term)
-
-                        if 'eps' not in firsts[symbol]:
-                            produces_epsilon_for_this_production = False
-                            break 
-                    else: 
-                        produces_epsilon_for_this_production = False # Cannot derive epsilon through this path yet
-                        break # Stop processing this production for FIRST calculation this iteration
-                
-                if produces_epsilon_for_this_production:
-                    if 'eps' not in current_production_first: 
-                        current_production_first.append('eps')
-                
-                initial_elements_count = len(firsts[nt])
-                for item in current_production_first:
-                    if item not in firsts[nt]: 
-                        firsts[nt].append(item)
-                if len(firsts[nt]) > initial_elements_count:
+    def find_first_set(self):
+        first = {}
+        for nt in self.non_terminals:
+            first[nt] = set()
+        done = False
+        while not done:
+            changed = False
+            for nt in self.non_terminals:
+                productions = self.productions[nt]
+                size_before_change = len(first[nt])
+                size_after_change = len(first[nt])
+                for production in productions:
+                    terms = production.split()
+                    if terms[0] in self.terminals or terms[0] == 'eps':
+                        first[nt].add(terms[0])
+                        size_after_change = len(first[nt])
+                    else:
+                        idx = 0
+                        var = terms[0]
+                        while 'eps' in first[var] and idx < len(terms):
+                            temp_copy = first[var].copy()
+                            temp_copy.remove('eps')
+                            first[nt].update(temp_copy)
+                            idx += 1
+                            if idx == len(terms):
+                                break
+                            var = terms[idx]
+                        first[nt].update(first[var])
+                        size_after_change = len(first[nt])
+                if(size_after_change > size_before_change):
                     changed = True
+            if(not changed):
+                done = True
+
+        return first
     
-    return firsts
-
-def find_all_follows(ll1, all_firsts):
-    follows = {}
-    end_of_input_marker = '$' 
-
-    # 1. Initialization
-    for nt in ll1.non_terminals:
-        follows[nt] = []
-    
-    # Add '$' to FOLLOW(start_symbol)
-    follows[ll1.start].append(end_of_input_marker)
-
-    changed = True
-    while changed:
-        changed = False
-        # Iterate through each production A -> body
-        for nt_A in ll1.non_terminals:
-            # Production bodies are strings here, e.g., 'T E_prime'
-            production_pings = ll1.productions.get(nt_A, [])
-
-            for p in production_pings:
-                # --- NEW: Parse the string into a list of symbols here ---
-                production_body_symbols = [s for s in p.split(' ') if s]
-                # --- END NEW ---
-
-                # Iterate through symbols in the production body to find non-terminals
-                for i, symbol_B in enumerate(production_body_symbols):
-                    if symbol_B in ll1.non_terminals: # We are interested in non-terminals B
-                        # The 'beta' part are symbols following B
-                        beta = production_body_symbols[i+1:]
-
-                        # Rule 1: A -> alpha B beta
-                        if beta:
-                            first_of_beta = find_first_set_of_beta(ll1, all_firsts, beta)
-
-                            # Add all non-'eps' terminals from FIRST(beta) to FOLLOW(B)
-                            for term in first_of_beta:
-                                if term != 'eps':
-                                    if term not in follows[symbol_B]:
-                                        follows[symbol_B].append(term)
-                                        changed = True
-                            
-                            # Rule 2: If 'eps' is in FIRST(beta), then FOLLOW(A) also contributes to FOLLOW(B)
-                            if 'eps' in first_of_beta:
-                                for term_in_follow_A in follows[nt_A]:
-                                    if term_in_follow_A not in follows[symbol_B]:
-                                        follows[symbol_B].append(term_in_follow_A)
-                                        changed = True
-                        
-                        # Rule 3: If B is the last symbol in the production (beta is empty)
-                        # Then FOLLOW(A) is added to FOLLOW(B)
-                        else: # beta is empty
-                             for term_in_follow_A in follows[nt_A]:
-                                if term_in_follow_A not in follows[symbol_B]:
-                                    follows[symbol_B].append(term_in_follow_A)
-                                    changed = True
-
-    return follows
+    def find_follow_set(self , first):
+        follow = {}
+        for nt in self.non_terminals:
+            follow[nt] = set()
+            if nt == self.start:
+                follow[nt].add(self.stack_bottom_symbol)
+        done = False
+        while not done:
+            changed = False
+            for left_side , productions in self.productions.items():
+                for right_side in productions:
+                    terms = right_side.split()
+                    for i, term in enumerate(terms):
+                        if term in self.non_terminals:
+                            size_before_change = len(follow[term])
+                            size_after_change = len(follow[term])
+                            if i == len(terms) - 1:
+                                follow[term].update(follow[left_side])
+                                size_after_change = len(follow[term])
+                            else:
+                                beta = terms[i+1 :]
+                                beta_first = set()
+                                if beta[0] in self.terminals or beta[0] == 'eps':
+                                    beta_first.add(beta[0])
+                                else:
+                                    idx = 0
+                                    var = beta[0]
+                                    while 'eps' in first[var] and idx < len(beta):
+                                        temp_copy = first[var].copy()
+                                        temp_copy.remove('eps')
+                                        beta_first.update(temp_copy)
+                                        idx += 1
+                                        if idx == len(beta):
+                                            break
+                                        var = beta[idx]
+                                    beta_first.update(first[var])
+                                if 'eps' in beta_first:
+                                    beta_first.remove('eps')
+                                    follow[term].update(follow[left_side])
+                                follow[term].update(beta_first)
+                                size_after_change = len(follow[term])
+                            if(size_after_change > size_before_change):
+                                changed = True
+            if not changed:
+                done = True
+        
+        return follow
 
 
+            
 
 
 # test file to ll1 grammer
@@ -210,9 +147,8 @@ g = LL1Grammar.file_to_LL1("grammar.ll1")
 # print("Non-terminals:", g.non_terminals)
 # print("Productions:", g.productions)
 # print("Token Rules:", g.token_rules)
-# print(find_all_firsts(g))
-print(find_all_follows(g , find_all_firsts(g)))
-# print(return_follows(g , LL1Grammar.return_firsts(g)))
+# print(g.find_first_set())
+print(g.find_follow_set(g.find_first_set()))
 #-------------------------------------
 # endtest
 
