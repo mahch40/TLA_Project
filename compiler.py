@@ -134,6 +134,42 @@ class LL1Grammar():
                 done = True
         
         return follow
+    
+    def construct_parsing_table(self, first, follow):
+        parsing_table = {}
+        for left_side , productions in self.productions.items():
+            for right_side in productions:
+                    terms = right_side.split()
+                    if terms[0] in self.terminals:
+                        parsing_table[(left_side, terms[0])] = right_side
+                    elif terms[0] == 'eps' and len(terms) == 1:
+                        for term in (follow[left_side]):
+                            parsing_table[(left_side, term)] = 'eps'
+                    else:    
+                        all_have_eps = True
+                        for i, term in enumerate(terms):
+                            alpha_first = set()
+                            if 'eps' not in first[term]:
+                                alpha_first.update(first[term]) 
+                                all_have_eps = False
+                                break
+                            copy_term = first[term].copy()
+                            copy_term.remove('eps')
+                            alpha_first.update(copy_term)
+                        for f in alpha_first:    
+                            parsing_table[(left_side, f)] = right_side
+                        if all_have_eps:
+                            for term in (follow[left_side]):
+                                parsing_table[(left_side, term)] = right_side
+        return parsing_table                        
+
+
+
+
+
+
+
+
 
 
             
@@ -148,7 +184,9 @@ g = LL1Grammar.file_to_LL1("grammar.ll1")
 # print("Productions:", g.productions)
 # print("Token Rules:", g.token_rules)
 # print(g.find_first_set())
-print(g.find_follow_set(g.find_first_set()))
+# print(g.find_follow_set(g.find_first_set()))
+first = g.find_first_set()
+print(g.construct_parsing_table(first, g.find_follow_set(first)))
 #-------------------------------------
 # endtest
 
