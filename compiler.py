@@ -163,18 +163,7 @@ class LL1Grammar():
                                 parsing_table[(left_side, term)] = right_side
         return parsing_table                        
 
-
-
-
-
-
-
-
-
-
             
-
-
 # test file to ll1 grammer
 #-------------------------------------
 g = LL1Grammar.file_to_LL1("grammar.ll1")          
@@ -185,8 +174,8 @@ g = LL1Grammar.file_to_LL1("grammar.ll1")
 # print("Token Rules:", g.token_rules)
 # print(g.find_first_set())
 # print(g.find_follow_set(g.find_first_set()))
-first = g.find_first_set()
-print(g.construct_parsing_table(first, g.find_follow_set(first)))
+# first = g.find_first_set()
+# print(g.construct_parsing_table(first, g.find_follow_set(first)))
 #-------------------------------------
 # endtest
 
@@ -205,7 +194,10 @@ class DPDA():
 
     @staticmethod
     def process_string(dpda , string):
-        stack = [dpda.stack_start_symbol]   
+        string = string.split()
+        stack = []
+        for s in dpda.stack_start_symbol:
+            stack.append(s)   
         current_state = dpda.initial_state
         top = stack[-1]
         j = 0
@@ -214,21 +206,25 @@ class DPDA():
             if(j != len(string)):
                 s = string[j]
             if (current_state, s, top) in dpda.transition_function:
+                if(s == top):
+                    j += 1
                 next = dpda.transition_function[(current_state, s, top)]
                 current_state = next[0]
                 stack.pop()
-                for i in range(len(next[1]) - 1, -1, -1):
-                    stack.append(next[1][i])
+                temp = next[1].split()
+                for i in range(len(temp) - 1, -1, -1):
+                    stack.append(temp[i])
                 top = stack[-1]
-                j += 1
-            elif (current_state, '', top) in dpda.transition_function:
-                next = dpda.transition_function[(current_state, '', top)]
+            elif (current_state, 'eps', top) in dpda.transition_function:
+                next = dpda.transition_function[(current_state, 'eps', top)]
                 current_state = next[0]
                 stack.pop()
-                for i in range(len(next[1]) - 1, -1, -1):
-                    stack.append(next[1][i])
+                temp = next[1].split()
+                for i in range(len(temp) - 1, -1, -1):
+                    if(temp[j] != 'eps'):
+                        stack.append(temp[i])
                 top = stack[-1]
-                if(j == len(string)):
+                if(j == len(string) and len(stack) == 1):
                     j += 1
             else:
                 return False
@@ -238,6 +234,27 @@ class DPDA():
         
         return False
     
+    @staticmethod
+    def turn_LL1_to_DPDA(ll1: LL1Grammar):
+        first = ll1.find_first_set()
+        follow = ll1.find_follow_set(first)
+        parsing_table = ll1.construct_parsing_table(first, follow)
+
+        states = ['q0', 'qf']
+        final_states = ['qf']
+        input_alphabet = ll1.terminals
+        stack_alphabet = ll1.non_terminals 
+        stack_alphabet.append('$')
+        transition_function = {('q0', '$', '$'): ('qf', '$'), ('q0', 'eps', 'eps'): ('q0', 'eps')}
+        for key, value in parsing_table.items():
+            transition_function[('q0', key[1], key[0])] = ('q0', value)
+        for terminal in ll1.terminals:
+            transition_function[('q0', terminal, terminal)] = ('q0', 'eps')
+        # print(transition_function)
+        return DPDA(states, input_alphabet, stack_alphabet, transition_function, final_states, stack_start_symbol=f"${ll1.start}")
+        
+        
+    
     
 # test dpda
 #-------------------------------------
@@ -246,12 +263,12 @@ class DPDA():
 # stack_alphabet_anbn = {'A', '$'}
 
 # transition_function_anbn = {
-#     ('q0', '', '$'): ('q0', '$'),
+#     ('q0', 'eps', '$'): ('q0', '$'),
 #     ('q0', 'a', '$'): ('q0', 'A$'),
 #     ('q0', 'a', 'A'): ('q0', 'AA'),
-#     ('q0', 'b', 'A'): ('q1', ''),
-#     ('q1', 'b', 'A'): ('q1', ''),
-#     ('q1', '', '$'): ('qf', '$')
+#     ('q0', 'b', 'A'): ('q1', 'eps'),
+#     ('q1', 'b', 'A'): ('q1', 'eps'),
+#     ('q1', 'eps', '$'): ('qf', '$')
 # }
 
 # final_states_anbn = ['qf', 'q0']
@@ -274,3 +291,10 @@ class DPDA():
 # endtest
 
 # endregion
+
+
+
+g = LL1Grammar.file_to_LL1("grammar.ll1")          
+
+m = DPDA.turn_LL1_to_DPDA(g)
+print(DPDA.process_string(m, 'I'))
