@@ -1,3 +1,5 @@
+import re
+
 # region LL1 Grammer class
 class LL1Grammar():
     def __init__(self, start, non_terminals, terminals, productions, token_rules, stack_bottom_symbol='$'):
@@ -165,7 +167,23 @@ class LL1Grammar():
                         if all_have_eps:
                             for term in (follow[left_side]):
                                 parsing_table[(left_side, term)] = right_side
-        return parsing_table                        
+        return parsing_table         
+
+    def turn_string_to_tokens(self, string):
+        tokend_str = ""
+        splitted_str = string.split()
+        for char in splitted_str:
+            found = False
+            for reg, token in self.token_rules.items():
+                if re.fullmatch(reg, char):
+                    found = True
+                    tokend_str += token + ' '
+                    break
+            if not found:
+                raise Exception("input is not tokenizable !")
+        return tokend_str
+            
+
 
             
 # test file to ll1 grammer
@@ -196,22 +214,21 @@ class DPDA():
         self.final_states = final_states
         self.initial_state = initial_state
 
-    @staticmethod
-    def process_string(dpda , string):
+    def process_string(self , string):
         string = string.split()
-        string.append(dpda.stack_start_symbol[0])
+        string.append(self.stack_start_symbol[0])
         stack = []
-        for s in dpda.stack_start_symbol:
+        for s in self.stack_start_symbol:
             stack.append(s)   
-        current_state = dpda.initial_state
+        current_state = self.initial_state
         top = stack[-1]
         j = 0
         s = ''
         while j <= len(string):
             if(j != len(string)):
                 s = string[j]
-            if (current_state, s, top) in dpda.transition_function:
-                next = dpda.transition_function[(current_state, s, top)]
+            if (current_state, s, top) in self.transition_function:
+                next = self.transition_function[(current_state, s, top)]
                 current_state = next[0]
                 if(top == s):
                     j+=1
@@ -221,8 +238,8 @@ class DPDA():
                     if(temp[i] != 'eps'):
                         stack.append(temp[i])
                 top = stack[-1]
-            elif (current_state, 'eps', top) in dpda.transition_function:
-                next = dpda.transition_function[(current_state, 'eps', top)]
+            elif (current_state, 'eps', top) in self.transition_function:
+                next = self.transition_function[(current_state, 'eps', top)]
                 current_state = next[0]
                 stack.pop()
                 temp = next[1].split()
@@ -237,7 +254,7 @@ class DPDA():
             else:
                 return False
             
-        if current_state in dpda.final_states and len(stack) == 1:
+        if current_state in self.final_states and len(stack) == 1:
             return True
         
         return False
@@ -316,9 +333,9 @@ class DPDA():
 # test ll1 to dpda
 #-------------------------------------
 g = LL1Grammar.file_to_LL1("grammar.ll1")          
-
 m = DPDA.turn_LL1_to_DPDA(g)
-print(DPDA.process_string(m, 'LEFT_PAR I RIGHT_PAR'))
+tokens = g.turn_string_to_tokens("a * b * c + d")
+print(m.process_string(tokens))
 #-------------------------------------
 # endtest
 # endregion
