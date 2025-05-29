@@ -1,5 +1,6 @@
 import re
-
+from graphviz import Digraph
+from builtins import id as uniq_id
 # region LL1 Grammer class
 class LL1Grammar():
     def __init__(self, start, non_terminals, terminals, productions, token_rules, stack_bottom_symbol='$'):
@@ -214,51 +215,7 @@ class DPDA():
         self.final_states = final_states
         self.initial_state = initial_state
 
-    def process_string(self , string):
-        string = string.split()
-        string.append(self.stack_start_symbol[0])
-        stack = []
-        for s in self.stack_start_symbol:
-            stack.append(s)   
-        current_state = self.initial_state
-        top = stack[-1]
-        j = 0
-        s = ''
-        while j <= len(string):
-            if(j != len(string)):
-                s = string[j]
-            if (current_state, s, top) in self.transition_function:
-                next = self.transition_function[(current_state, s, top)]
-                current_state = next[0]
-                if(top == s):
-                    j+=1
-                stack.pop()
-                temp = next[1].split()
-                for i in range(len(temp) - 1, -1, -1):
-                    if(temp[i] != 'eps'):
-                        stack.append(temp[i])
-                top = stack[-1]
-            elif (current_state, 'eps', top) in self.transition_function:
-                next = self.transition_function[(current_state, 'eps', top)]
-                current_state = next[0]
-                stack.pop()
-                temp = next[1].split()
-                for i in range(len(temp) - 1, -1, -1):
-                    if(temp[j] != 'eps'):
-                        stack.append(temp[i])
-                top = stack[-1]
-                if(j == len(string) and len(stack) == 1):
-                    j += 1
-            elif j == len(string) and len(stack) == 1:
-                j += 1
-            else:
-                return False
-            
-        if current_state in self.final_states and len(stack) == 1:
-            return True
-        
-        return False
-
+    
     @staticmethod
     def turn_LL1_to_DPDA(ll1: LL1Grammar):
         first = ll1.find_first_set()
@@ -292,8 +249,107 @@ class DPDA():
                     final_states=final_states,
                     initial_state='q0', 
                     stack_start_symbol=dpda_stack_start_symbol)        
+
+    def process_string(self , tokened_string, string):
+        derivations = []
+        tokened_string = tokened_string.split()
+        tokened_string.append(self.stack_start_symbol[0])
+        stack = []
+        string = string.split()
+        for s in self.stack_start_symbol:
+            stack.append(s)   
+        current_state = self.initial_state
+        top = stack[-1]
+        j = 0
+        s = ''
+        while j <= len(tokened_string):
+            if(j != len(tokened_string)):
+                s = tokened_string[j]
+                if s == 'LITERAL':
+                    print("hi")
+            if (current_state, s, top) in self.transition_function:
+                next = self.transition_function[(current_state, s, top)]
+                current_state = next[0]
+                should_derive = True
+                if(top == s):
+                    should_derive = False
+                    if j < len(tokened_string) - 1:
+                        derivations.append(string[j])
+                    j+=1
+                stack.pop()
+                temp = next[1].split()
+                derivation = top + " -> "
+                n = len(temp)
+                for i in range(len(temp) - 1, -1, -1):
+                    derivation += temp[n - i - 1] + ' '
+                    if(temp[i] != 'eps'):
+                        stack.append(temp[i])
+                if should_derive:
+                    derivations.append(derivation)
+                top = stack[-1]
+            elif (current_state, 'eps', top) in self.transition_function:
+                next = self.transition_function[(current_state, 'eps', top)]
+                current_state = next[0]
+                stack.pop()
+                temp = next[1].split()
+                n = len(temp)
+                derivation = top + " -> "
+                for i in range(len(temp) - 1, -1, -1):
+                    derivation += temp[n - i - 1] + ' '
+                    if(temp[i] != 'eps'):
+                        stack.append(temp[i])
+                derivations.append(derivation)
+                top = stack[-1]
+                if(j == len(tokened_string) and len(stack) == 1):
+                    j += 1
+            elif j == len(tokened_string) and len(stack) == 1:
+                j += 1
+            else:
+                return False, derivations
+            
+        if current_state in self.final_states and len(stack) == 1:
+            return True, derivations
+        
+        return False, derivations
     
-    
+    def make_nodes_from_derivations(self, derivations: list, id):
+        der = derivations[0]
+        root = None
+        if '->' in der:
+            temp = der.split('->')
+            root = Node(temp[0].strip(), id, "node")
+            children = temp[1].strip().split()
+            for child in children:
+                id += 1
+                if child == 'eps':
+                    root.add_child(Node('eps', id, "leaf"))
+                    break
+                new_derivations = derivations.copy()
+                if new_derivations[0].split('->')[0].strip() != child:
+                    new_derivations.pop(0)
+                node, derivations = self.make_nodes_from_derivations(new_derivations, id)
+                root.add_child(node)
+            new_derivations = derivations.copy()
+        else:
+            new_derivations = derivations.copy()
+            new_derivations.pop(0)
+            root = Node(der, id, "leaf")
+        return root, new_derivations
+
+
+class Node:
+    def __init__(self, label, id, type):
+        self.label = label
+        self.id = id
+        self.children = []
+        self.type = type
+
+    def add_child(self, child):
+        self.children.append(child)
+
+    def add_childrens(self, children):
+        self.children.extend(children)
+
 # test dpda
 #-------------------------------------
 # states_anbn = {'q0', 'q1', 'qf'}
@@ -332,10 +388,51 @@ class DPDA():
 
 # test ll1 to dpda
 #-------------------------------------
+def visualize_tree(tree, graph=None, parent_name=None, edge_label=""):
+    if graph is None:
+        graph = Digraph()
+
+    # assign unique ID to prevent merging if node is repeated
+    unique_node_name = f"{tree.label}_{uniq_id(tree)}"  
+   
+    # check whether it's a leaf (has no children) if is put rectangle else put oval
+    if not tree.children:
+        graph.node(unique_node_name, label=str(tree.label), shape="box") 
+
+    else:
+        graph.node(unique_node_name, label=str(tree.label), shape="oval") 
+
+    if parent_name is not None:
+        graph.edge(parent_name, unique_node_name)  
+
+    for node in tree.children:
+        visualize_tree(node, graph, unique_node_name, node.label) 
+
+    return graph
+
 g = LL1Grammar.file_to_LL1("grammar.ll1")          
 m = DPDA.turn_LL1_to_DPDA(g)
-tokens = g.turn_string_to_tokens("a * b * c + d")
-print(m.process_string(tokens))
-#-------------------------------------
+s = "eps" 
+tokens = g.turn_string_to_tokens(s)
+result, derivations = m.process_string(tokens, s)
+print(result)
+print(derivations)
+id = 0
+# if result:
+tree, derivations = m.make_nodes_from_derivations(derivations, id)
+    # print(tree)
+h = visualize_tree(tree)
+h.render('wt', format='pdf', view=True)  # show decision tree before pruning
+
+# def shhh(tree):
+#     print(tree.label)
+#     if not tree.children:
+#         return
+#     for c in tree.children:
+#         shhh(c)
+
+# print(shhh(tree))
+
+# #-------------------------------------
 # endtest
 # endregion
