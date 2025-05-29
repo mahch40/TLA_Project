@@ -122,7 +122,11 @@ class LL1Grammar():
                                         if idx == len(beta):
                                             break
                                         var = beta[idx]
-                                    beta_first.update(first[var])
+                                        if(var in self.terminals):
+                                            beta_first.add(var)
+                                            break
+                                    if var not in self.terminals:
+                                        beta_first.update(first[var])
                                 if 'eps' in beta_first:
                                     beta_first.remove('eps')
                                     follow[term].update(follow[left_side])
@@ -195,6 +199,7 @@ class DPDA():
     @staticmethod
     def process_string(dpda , string):
         string = string.split()
+        string.append(dpda.stack_start_symbol[0])
         stack = []
         for s in dpda.stack_start_symbol:
             stack.append(s)   
@@ -206,14 +211,15 @@ class DPDA():
             if(j != len(string)):
                 s = string[j]
             if (current_state, s, top) in dpda.transition_function:
-                if(s == top):
-                    j += 1
                 next = dpda.transition_function[(current_state, s, top)]
                 current_state = next[0]
+                if(top == s):
+                    j+=1
                 stack.pop()
                 temp = next[1].split()
                 for i in range(len(temp) - 1, -1, -1):
-                    stack.append(temp[i])
+                    if(temp[i] != 'eps'):
+                        stack.append(temp[i])
                 top = stack[-1]
             elif (current_state, 'eps', top) in dpda.transition_function:
                 next = dpda.transition_function[(current_state, 'eps', top)]
@@ -226,6 +232,8 @@ class DPDA():
                 top = stack[-1]
                 if(j == len(string) and len(stack) == 1):
                     j += 1
+            elif j == len(string) and len(stack) == 1:
+                j += 1
             else:
                 return False
             
@@ -233,7 +241,7 @@ class DPDA():
             return True
         
         return False
-    
+
     @staticmethod
     def turn_LL1_to_DPDA(ll1: LL1Grammar):
         first = ll1.find_first_set()
@@ -242,18 +250,31 @@ class DPDA():
 
         states = ['q0', 'qf']
         final_states = ['qf']
-        input_alphabet = ll1.terminals
-        stack_alphabet = ll1.non_terminals 
-        stack_alphabet.append('$')
-        transition_function = {('q0', '$', '$'): ('qf', '$'), ('q0', 'eps', 'eps'): ('q0', 'eps')}
-        for key, value in parsing_table.items():
-            transition_function[('q0', key[1], key[0])] = ('q0', value)
+
+        input_alphabet = set(ll1.terminals + [ll1.stack_bottom_symbol])
+
+        stack_alphabet = set(ll1.non_terminals + ll1.terminals + [ll1.start] + [ll1.stack_bottom_symbol])
+        
+        transition_function = {}
+
+        for (non_terminal, terminal), right_side in parsing_table.items():
+            rs_str = right_side if right_side != 'eps' else 'eps'
+            transition_function[('q0', terminal, non_terminal)] = ('q0', rs_str)
+
         for terminal in ll1.terminals:
             transition_function[('q0', terminal, terminal)] = ('q0', 'eps')
-        # print(transition_function)
-        return DPDA(states, input_alphabet, stack_alphabet, transition_function, final_states, stack_start_symbol=f"${ll1.start}")
-        
-        
+
+        transition_function[('q0', ll1.stack_bottom_symbol, ll1.stack_bottom_symbol)] = ('qf', ll1.stack_bottom_symbol)
+
+        dpda_stack_start_symbol = [ll1.stack_bottom_symbol, ll1.start]
+
+        return DPDA(states=states,
+                    input_alphabet=input_alphabet,
+                    stack_alphabet=stack_alphabet,
+                    transition_function=transition_function,
+                    final_states=final_states,
+                    initial_state='q0', 
+                    stack_start_symbol=dpda_stack_start_symbol)        
     
     
 # test dpda
@@ -290,11 +311,14 @@ class DPDA():
 #-------------------------------------
 # endtest
 
-# endregion
 
 
-
+# test ll1 to dpda
+#-------------------------------------
 g = LL1Grammar.file_to_LL1("grammar.ll1")          
 
 m = DPDA.turn_LL1_to_DPDA(g)
-print(DPDA.process_string(m, 'I'))
+print(DPDA.process_string(m, 'LEFT_PAR I RIGHT_PAR'))
+#-------------------------------------
+# endtest
+# endregion
