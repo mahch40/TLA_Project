@@ -183,26 +183,6 @@ class LL1Grammar():
             if not found:
                 raise Exception("input is not tokenizable !")
         return tokend_str
-            
-
-
-            
-# test file to ll1 grammer
-#-------------------------------------
-g = LL1Grammar.file_to_LL1("grammar.ll1")          
-# print("Start:", g.start)
-# print("Terminals:", g.terminals)
-# print("Non-terminals:", g.non_terminals)
-# print("Productions:", g.productions)
-# print("Token Rules:", g.token_rules)
-# print(g.find_first_set())
-# print(g.find_follow_set(g.find_first_set()))
-# first = g.find_first_set()
-# print(g.construct_parsing_table(first, g.find_follow_set(first)))
-#-------------------------------------
-# endtest
-
-# endregion
 
 # region DPDA class
 class DPDA():
@@ -265,8 +245,7 @@ class DPDA():
         while j <= len(tokened_string):
             if(j != len(tokened_string)):
                 s = tokened_string[j]
-                if s == 'LITERAL':
-                    print("hi")
+
             if (current_state, s, top) in self.transition_function:
                 next = self.transition_function[(current_state, s, top)]
                 current_state = next[0]
@@ -318,16 +297,14 @@ class DPDA():
         if '->' in der:
             temp = der.split('->')
             root = Node(temp[0].strip(), id, "node")
+            derivations.pop(0)
             children = temp[1].strip().split()
             for child in children:
                 id += 1
                 if child == 'eps':
                     root.add_child(Node('eps', id, "leaf"))
                     break
-                new_derivations = derivations.copy()
-                if new_derivations[0].split('->')[0].strip() != child:
-                    new_derivations.pop(0)
-                node, derivations = self.make_nodes_from_derivations(new_derivations, id)
+                node, derivations = self.make_nodes_from_derivations(derivations, id)
                 root.add_child(node)
             new_derivations = derivations.copy()
         else:
@@ -349,42 +326,6 @@ class Node:
 
     def add_childrens(self, children):
         self.children.extend(children)
-
-# test dpda
-#-------------------------------------
-# states_anbn = {'q0', 'q1', 'qf'}
-# input_alphabet_anbn = {'a', 'b'}
-# stack_alphabet_anbn = {'A', '$'}
-
-# transition_function_anbn = {
-#     ('q0', 'eps', '$'): ('q0', '$'),
-#     ('q0', 'a', '$'): ('q0', 'A$'),
-#     ('q0', 'a', 'A'): ('q0', 'AA'),
-#     ('q0', 'b', 'A'): ('q1', 'eps'),
-#     ('q1', 'b', 'A'): ('q1', 'eps'),
-#     ('q1', 'eps', '$'): ('qf', '$')
-# }
-
-# final_states_anbn = ['qf', 'q0']
-# initial_state_anbn = 'q0'
-# stack_start_symbol_anbn = '$'
-
-# dpda_anbn = DPDA(
-#     states=states_anbn,
-#     input_alphabet=input_alphabet_anbn,
-#     stack_alphabet=stack_alphabet_anbn,
-#     transition_function=transition_function_anbn,
-#     final_states=final_states_anbn,
-#     initial_state=initial_state_anbn,
-#     stack_start_symbol=stack_start_symbol_anbn
-# )
-
-# result = DPDA.process_string(dpda_anbn, 'aabb')
-# print(result)
-#-------------------------------------
-# endtest
-
-
 
 # test ll1 to dpda
 #-------------------------------------
@@ -410,29 +351,17 @@ def visualize_tree(tree, graph=None, parent_name=None, edge_label=""):
 
     return graph
 
-g = LL1Grammar.file_to_LL1("grammar.ll1")          
+g = LL1Grammar.file_to_LL1("grammar2.ll1")        
 m = DPDA.turn_LL1_to_DPDA(g)
-s = "eps" 
+s = "function main ( ) { x = 42 ; y = 3.14 ; z = ( x + y ) * 2 ; if ( z ) { result = z / 1.5 ; } while ( x = 0 ) { x = x - 1 ; } return result ; }"
 tokens = g.turn_string_to_tokens(s)
 result, derivations = m.process_string(tokens, s)
 print(result)
 print(derivations)
 id = 0
-# if result:
-tree, derivations = m.make_nodes_from_derivations(derivations, id)
-    # print(tree)
-h = visualize_tree(tree)
-h.render('wt', format='pdf', view=True)  # show decision tree before pruning
+if result:
+    tree, derivations = m.make_nodes_from_derivations(derivations, id)
+    h = visualize_tree(tree)
+    h.render('wt', format='pdf', view=True)
 
-# def shhh(tree):
-#     print(tree.label)
-#     if not tree.children:
-#         return
-#     for c in tree.children:
-#         shhh(c)
-
-# print(shhh(tree))
-
-# #-------------------------------------
-# endtest
-# endregion
+    
