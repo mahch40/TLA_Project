@@ -312,8 +312,9 @@ class DPDA():
             new_derivations.pop(0)
             root = Node(der, id, "leaf")
         return root, new_derivations
+# endregion
 
-
+# region Parse Tree and Reanme
 class Node:
     def __init__(self, label, id, type):
         self.label = label
@@ -327,8 +328,6 @@ class Node:
     def add_childrens(self, children):
         self.children.extend(children)
 
-# test ll1 to dpda
-#-------------------------------------
 def visualize_tree(tree, graph=None, parent_name=None, edge_label=""):
     if graph is None:
         graph = Digraph()
@@ -351,16 +350,89 @@ def visualize_tree(tree, graph=None, parent_name=None, edge_label=""):
 
     return graph
 
-g = LL1Grammar.file_to_LL1("grammar2.ll1")        
+def rename_vars_in_subtree(current_node, old_var_name, new_var_name):
+    if current_node.type == "leaf" and current_node.label == old_var_name:
+        current_node.label = new_var_name
+    
+    for child in current_node.children:
+        rename_vars_in_subtree(child, old_var_name, new_var_name)
+
+def process_function_for_rename(function_node, target_function_name_str, old_var_name, new_var_name):
+    found_function_id_node = None
+    target_block_node = None
+
+    for child in function_node.children:
+        if child.type == "leaf" and child.label == target_function_name_str:
+            found_function_id_node = child
+        
+        if child.type == "node" and child.label == "Block":
+            target_block_node = child
+            
+    if found_function_id_node and target_block_node:
+        rename_vars_in_subtree(target_block_node, old_var_name, new_var_name)
+        return True
+    return False
+
+def find_and_rename_in_function(current_node, target_function_name_str, old_var_name, new_var_name):
+    if current_node is None:
+        return False
+
+    processed_in_this_path = False
+    if current_node.type == "node" and current_node.label == "Function":
+        if process_function_for_rename(current_node, target_function_name_str, old_var_name, new_var_name):
+            processed_in_this_path = True
+            return True 
+
+    if not processed_in_this_path:
+        for child in current_node.children:
+            if find_and_rename_in_function(child, target_function_name_str, old_var_name, new_var_name):
+                return True 
+    
+    return False
+# endregion
+
+# region test
+# test 1
+g = LL1Grammar.file_to_LL1("grammar.ll1")        
 m = DPDA.turn_LL1_to_DPDA(g)
-s = "function main ( ) { x = 42 ; y = 3.14 ; z = ( x + y ) * 2 ; if ( z ) { result = z / 1.5 ; } while ( x ) { x = x - 1 ; } return result ; }"
+s = "a + b * a"
 tokens = g.turn_string_to_tokens(s)
 result, derivations = m.process_string(tokens, s)
 print(result)
-print(derivations)
 id = 0
 if result:
     tree, derivations = m.make_nodes_from_derivations(derivations, id)
     h = visualize_tree(tree)
-    h.render('out', format='pdf', view=True)
+    h.render('out1', format='pdf', view=True)
 
+if result:
+    old_name = "a"
+    new_name = "new_a"
+
+    rename_vars_in_subtree(tree, old_name, new_name)
+    h = visualize_tree(tree)
+    h.render('out_renamed1', format='pdf', view=True)
+
+# test 2
+g = LL1Grammar.file_to_LL1("grammar2.ll1")        
+m = DPDA.turn_LL1_to_DPDA(g)
+s = "function f1 ( ) { x = 42 ; y = 3.14 ; z = x * 2 ; } function f2 ( ) { x = 5.5 ; if ( x ) return x ; }"
+tokens = g.turn_string_to_tokens(s)
+result, derivations = m.process_string(tokens, s)
+print(result)
+id = 0
+if result:
+    tree, derivations = m.make_nodes_from_derivations(derivations, id)
+    h = visualize_tree(tree)
+    h.render('out2', format='pdf', view=True)
+
+if result:
+    target_function = "f1"
+    old_name = "x"
+    new_name = "new_x_in_f1"
+
+    was_renamed = find_and_rename_in_function(tree, target_function, old_name, new_name)
+    if was_renamed:
+        h = visualize_tree(tree)
+        h.render('out_renamed2', format='pdf', view=True)
+# endregion
