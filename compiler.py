@@ -353,7 +353,7 @@ def visualize_tree(tree, graph=None, parent_name=None, edge_label=""):
 
 g = LL1Grammar.file_to_LL1("grammar2.ll1")        
 m = DPDA.turn_LL1_to_DPDA(g)
-s = "function main ( ) { x = 42 ; y = 3.14 ; z = ( x + y ) * 2 ; if ( z ) { result = z / 1.5 ; } while ( x = 0 ) { x = x - 1 ; } return result ; }"
+s = "function main ( ) { x = 42 ; y = 3.14 ; z = ( x + y ) * 2 ; if ( z > 1 ) { result = z / 1.5 ; } while ( x < 0 ) { x = x - 1 ; } return result ; }"
 tokens = g.turn_string_to_tokens(s)
 result, derivations = m.process_string(tokens, s)
 print(result)
@@ -362,6 +362,5 @@ id = 0
 if result:
     tree, derivations = m.make_nodes_from_derivations(derivations, id)
     h = visualize_tree(tree)
-    h.render('wt', format='pdf', view=True)
+    h.render('out', format='pdf', view=True)
 
-    
